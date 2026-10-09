@@ -209,13 +209,28 @@ android {
     try {
         def keystoreProperties = new Properties()
         keystoreProperties.load(rootProject.file("keystore.properties").newInputStream())
+        def keystoreFile = rootProject.file(keystoreProperties['storeFile'])
+        if (!keystoreFile.isFile()) {
+            throw new GradleException("Configured signing keystore does not exist: ${keystoreFile}")
+        }
         releaseSigning = signingConfigs.create("release") {
             keyAlias keystoreProperties['keyAlias']
             keyPassword keystoreProperties['keyPassword']
-            storeFile rootProject.file(keystoreProperties['storeFile'])
+            storeFile keystoreFile
             storePassword keystoreProperties['storePassword']
         }
-    } catch (Exception ignored) {
+    } catch (Exception signingException) {
+        def requestedPackageTask = gradle.startParameter.taskNames.any {
+            def taskName = it.toLowerCase(Locale.ROOT)
+            taskName.contains("assemble") || taskName.contains("package") || taskName.contains("bundle")
+        }
+        if (System.getenv("CI") == "true" && requestedPackageTask) {
+            throw new GradleException(
+                "CI APK builds require the persistent personal signing key. Configure the repository signing secrets; refusing to fall back to the temporary debug key.",
+                signingException
+            )
+        }
+        logger.warn("Personal signing key unavailable; using the local debug key for this non-CI build.")
         releaseSigning = signingConfigs.debug
     }
 
