@@ -114,6 +114,11 @@ class ScalingWorkspaceRevealAnim(
     private var surfaceTransactionApplier: SurfaceTransactionApplier =
         SurfaceTransactionApplier(launcher.dragLayer)
 
+    // Reuse frame-update objects to avoid per-frame allocations during the home gesture.
+    private val transformedTarget = RectF()
+    private val workspaceScaleMatrix = Matrix()
+    private val targetCompensationMatrix = Matrix()
+
     init {
         // Make sure the starting state is right for the animation.
         val setupConfig = StateAnimationConfig()
@@ -225,31 +230,29 @@ class ScalingWorkspaceRevealAnim(
         // We start by caching the final target position, as this is the base for the transforms.
         val originalTarget = RectF(windowTargetRect)
         animation.addOnFrameListener {
-            val transformed = RectF(originalTarget)
+            // Reuse these objects: allocating a RectF and two Matrix instances on every frame
+            // adds avoidable GC pressure while the app surface and home screen are animating.
+            transformedTarget.set(originalTarget)
 
             // First we scale down using the same pivot as the workspace scale, so we find the
             // correct position AND size.
-            transformed.transform(
-                Matrix().apply {
-                    setScale(workspace.scaleX, workspace.scaleY, workspace.pivotX, workspace.pivotY)
-                }
-            )
+            workspaceScaleMatrix.setScale(
+                workspace.scaleX, workspace.scaleY, workspace.pivotX, workspace.pivotY)
+            transformedTarget.transform(workspaceScaleMatrix)
+
             // Then we scale back up around the center of the current position. This is because the
             // icon animation behaves poorly if it is given a target that is smaller than the size
             // of the icon.
-            transformed.transform(
-                Matrix().apply {
-                    setScale(
-                        1 / workspace.scaleX,
-                        1 / workspace.scaleY,
-                        transformed.centerX(),
-                        transformed.centerY(),
-                    )
-                }
+            targetCompensationMatrix.setScale(
+                1 / workspace.scaleX,
+                1 / workspace.scaleY,
+                transformedTarget.centerX(),
+                transformedTarget.centerY(),
             )
+            transformedTarget.transform(targetCompensationMatrix)
 
-            if (transformed != windowTargetRect) {
-                windowTargetRect?.set(transformed)
+            if (transformedTarget != windowTargetRect) {
+                windowTargetRect?.set(transformedTarget)
                 siblingAnimation?.onTargetPositionChanged()
             }
         }
