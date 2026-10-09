@@ -205,8 +205,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     public static final long APP_LAUNCH_DURATION = 500;
 
-    public static final long APP_LAUNCH_ALPHA_DURATION = 50;
-    public static final long APP_LAUNCH_ALPHA_START_DELAY = 25;
+    public static final long APP_LAUNCH_ALPHA_DURATION = 150;
+    public static final long APP_LAUNCH_ALPHA_START_DELAY = 35;
 
     public static final int ANIMATION_NAV_FADE_IN_DURATION = 266;
     public static final int ANIMATION_NAV_FADE_OUT_DURATION = 133;
@@ -319,8 +319,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         mOpeningXInterpolator = AnimationUtils.loadInterpolator(
                 launcher, R.interpolator.app_open_x);
-        mOpeningInterpolator = AnimationUtils.loadInterpolator(
-                launcher, R.interpolator.emphasized_interpolator);
+        // Use a smooth ease-out curve for the icon-to-window expansion. The emphasized
+        // interpolator accelerates too aggressively for an iOS-style app-opening morph.
+        mOpeningInterpolator = new PathInterpolator(0.16f, 1f, 0.3f, 1f);
         mCoordinateTransfer = new RemoteAnimationCoordinateTransfer(mLauncher);
         mLatencyTracker = LatencyTracker.getInstance(launcher);
     }
